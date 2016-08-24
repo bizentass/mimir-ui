@@ -1,5 +1,6 @@
 *.class
 *.log
+serialized
 
 # sbt specific
 .cache
