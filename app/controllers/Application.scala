@@ -2,10 +2,18 @@ package controllers
 
 import java.io.File
 
-import mimir._
-import mimir.web.{WebResult, WebErrorResult, WebQueryResult, WebStringResult}
+import mimir.Database
+import mimir.sql.JDBCBackend
+import mimir.web._
+import mimir.algebra.{QueryNamer, QueryVisualizer, Type, RowIdPrimitive, Typechecker}
+import mimir.sql.{CreateLens, Explain}
+import mimir.util.{JSONBuilder}
 import play.api.mvc._
 import play.api.libs.json._
+import net.sf.jsqlparser.statement.Statement
+import net.sf.jsqlparser.statement.insert.Insert
+import net.sf.jsqlparser.statement.select.Select
+import net.sf.jsqlparser.statement.update.Update
 
 /*
  * This is the entry-point to the Web Interface.
@@ -54,25 +62,108 @@ class Application extends Controller {
     )
   }
 
+  implicit val WebResultWrites = new Writes[WebResult] {
+    def writes(webResult: WebResult) = {
+      webResult match {
+        case wr:WebStringResult => WebStringResultWrites.writes(wr)
+        case wr:WebQueryResult  => WebQueryResultWrites.writes(wr)
+        case wr:WebErrorResult  => WebErrorResultWrites.writes(wr)
+      }
+    }
+  }
+
   implicit val ReasonWrites = new Writes[(String, String)] {
     def writes(tup: (String, String)) = Json.obj("reason" -> tup._1, "lensType" -> tup._2)
   }
 
+  private def prepareDatabase(dbName: String = "test.db", backend: String = "sqlite") =
+  {
+    new Database(dbName, new JDBCBackend(backend, dbName))
+  }
 
-  var webAPI = new WebAPI()
+  private def handleStatements(input: String): (List[Statement], List[WebResult]) = {
+    val statements = db.parse(input)
+    val results = 
+    statements.map({
+      /*****************************************/           
+      case s: Select => {
+        val start = System.nanoTime()
+        val raw = db.sql.convert(s)
+        val rawT = System.nanoTime()
+        val results = db.query(raw)
+        val resultsT = System.nanoTime()
 
+        println("Convert time: "+((rawT-start)/(1000*1000))+"ms")
+        println("Compile time: "+((resultsT-rawT)/(1000*1000))+"ms")
+
+        results.open()
+        val wIter: WebIterator = db.generateWebIterator(results)
+        try{
+          wIter.queryFlow = QueryVisualizer.convertToTree(raw)
+        } catch {
+          case e: Throwable => {
+            e.printStackTrace()
+            wIter.queryFlow = new OperatorNode("", List(), None)
+          }
+        }
+        results.close()
+
+        new WebQueryResult(wIter)
+      }
+      /*****************************************/           
+      case s: CreateLens =>
+        db.createLens(s)
+        new WebStringResult("Lens created successfully.")
+      /*****************************************/           
+      case s: Explain => {
+        val raw = db.sql.convert(s.getSelectBody());
+        val op = db.optimize(raw)
+        val res = "------ Raw Query ------\n"+
+          raw.toString()+"\n"+
+          "--- Optimized Query ---\n"+
+          op.toString
+
+        new WebStringResult(res)
+      }
+      /*****************************************/           
+      case s: Insert =>
+        db.backend.update(s.toString)
+        new WebStringResult("Database updated.")
+      /*****************************************/           
+      case s: Update =>
+        db.backend.update(s.toString)
+        new WebStringResult("Database updated.")
+    })
+    (statements, results)
+  }
+
+  def allDatabases : Array[String] =
+  {
+    val curDir = new File(".", "databases")
+    curDir.listFiles().
+      filter( f => f.isFile && f.getName.endsWith(".db")).
+      map(x => x.getName)
+  }
+
+  def allSchemas: Map[String, List[(String, Type.T)]] = {
+    db.backend.getAllTables().map{ (x) => (x, db.getTableSchema(x).get) }.toMap ++
+      db.lenses.getAllLensNames().map{ (x) => (x, db.getLens(x).schema()) }.toMap
+  }
+
+
+  var db = prepareDatabase()
 
   /*
    * Actions
    */
   def index = Action {
     try {
-      webAPI.openBackendConnection()
+      db.backend.open()
       val result: WebResult = new WebStringResult("Query results show up here...")
-      Ok(views.html.index(webAPI, "", result, ""))
+      Ok(views.html.index(this, "", result, ""))
     }
     finally {
-      webAPI.closeBackendConnection()
+      db.backend.close()
     }
   }
 
@@ -83,19 +174,19 @@ class Application extends Controller {
   def changeDB = Action { request =>
 
     val form = request.body.asFormUrlEncoded
-    val db = form.get("db").head
+    val newDBName = form.get("db").head
 
-    if(!webAPI.getCurrentDB.equalsIgnoreCase(db)) {
-      webAPI = new WebAPI(dbName = db)
+    if(!db.name.equalsIgnoreCase(newDBName)) {
+      prepareDatabase(newDBName)
     }
 
     try {
-      webAPI.openBackendConnection()
-      Ok(views.html.index(webAPI, "",
-        new WebStringResult("Working database changed to "+db), ""))
+      db.backend.open()
+      Ok(views.html.index(this, "",
+        new WebStringResult("Working database changed to "+newDBName), ""))
     }
     finally {
-      webAPI.closeBackendConnection()
+      db.backend.close()
     }
 
   }
@@ -103,91 +194,110 @@ class Application extends Controller {
   def createDB = Action { request =>
 
     val form = request.body.asFormUrlEncoded
-    val db = form.get("db").head
+    val newDBName = form.get("db").head
 
-    webAPI = new WebAPI(dbName = db)
+    prepareDatabase(newDBName)
 
     try {
-      webAPI.openBackendConnection()
-      webAPI.initializeDBForMimir()
-      val result: WebResult = new WebStringResult("Database "+db+" successfully created.")
-
-      Ok(views.html.index(webAPI, "", result, ""))
+      db.backend.open()
+      db.initializeDBForMimir()
+      Ok(views.html.index(this, "",
+        new WebStringResult("Database "+newDBName+" successfully created."), ""))
     }
     finally {
-      webAPI.closeBackendConnection()
+      db.backend.close()
     }
-  }
 
+  }
 
   /**
    * Query handlers
    */
   def query = Action { request =>
     try {
-      webAPI.openBackendConnection()
+      db.backend.open()
       val form = request.body.asFormUrlEncoded
       val query = form.get("query")(0)
-      val (result, lastQuery) = webAPI.handleStatement(query)
-      Ok(views.html.index(webAPI, query, result, lastQuery))
+
+      val (statements, results) = handleStatements(query)
+
+      Ok(views.html.index(this, query, results.last, statements.last.toString))
     }
     finally {
-      webAPI.closeBackendConnection()
+      db.backend.close()
     }
   }
 
-  def queryGet(query: String, db: String) = Action {
-    if(!db.equalsIgnoreCase(webAPI.getCurrentDB)) {
-      webAPI = new WebAPI(dbName = db)
-    }
-
+  def nameForQuery(queryString: String) = Action {
     try {
-      webAPI.openBackendConnection()
-      val (result, lastQuery) = webAPI.handleStatement(query)
-      Ok(views.html.index(webAPI, query, result, lastQuery))
+      db.backend.open()
+
+      val querySql = db.parse(queryString).last.asInstanceOf[Select]
+      val queryRA = db.sql.convert(querySql)
+      val name = QueryNamer.nameQuery(db.optimize(queryRA))
+
+      Ok(name);
+
+    } catch {
+      case e: Throwable => {
+        e.printStackTrace()
+        InternalServerError("ERROR: "+e.getMessage())
+      }
     }
     finally {
-      webAPI.closeBackendConnection()
+      db.backend.close()
     }
   }
 
-  def nameForQuery(query: String, db: String) = Action {
+  def schemaForQuery(queryString: String) = Action {
     try {
-      webAPI.openBackendConnection()
+      db.backend.open()
       
-      val result = webAPI.nameForQuery(query)
+      val querySql = db.parse(queryString).last.asInstanceOf[Select]
+      val queryRA = db.sql.convert(querySql)
+      val schema = 
+        JSONBuilder.list(queryRA.schema.map({
+            case (name, t) => JSONBuilder.dict(Map(
+              "name" -> JSONBuilder.string(name),
+              "type" -> JSONBuilder.string(Type.toString(t)) 
+              ))
+            })
+          )
 
-      result match {
-        case x: WebStringResult => Ok(Json.toJson(x.asInstanceOf[WebStringResult]))
-        case x: WebQueryResult  => Ok(Json.toJson(x.asInstanceOf[WebQueryResult]))
-        case x: WebErrorResult  => Ok(Json.toJson(x.asInstanceOf[WebErrorResult]))
+      Ok(schema)
+
+    } catch {
+      case e: Throwable => {
+        e.printStackTrace()
+        InternalServerError("ERROR: "+e.getMessage())
       }
     }
     finally {
-      webAPI.closeBackendConnection()
+      db.backend.close()
     }
   }
 
-  def queryJson(query: String, db: String) = Action {
-    if(!db.equalsIgnoreCase(webAPI.getCurrentDB)) {
-      webAPI = new WebAPI(dbName = db)
+  def queryGet(query: String) = Action {
+    try {
+      db.backend.open()
+      val (statements, results) = handleStatements(query)
+      Ok(views.html.index(this, query, results.last, statements.last.toString))
     }
+    finally {
+      db.backend.close()
+    }
+  }
 
-//    webAPI.synchronized(
-      try {
-        webAPI.openBackendConnection()
-        val (result, _) = webAPI.handleStatement(query)
+  def queryJson(query: String) = Action {
+    try {
+      db.backend.open()
+      val (statements, results) = handleStatements(query)
 
-        result match {
-          case x: WebStringResult => Ok(Json.toJson(x.asInstanceOf[WebStringResult]))
-          case x: WebQueryResult  => Ok(Json.toJson(x.asInstanceOf[WebQueryResult]))
-          case x: WebErrorResult  => Ok(Json.toJson(x.asInstanceOf[WebErrorResult]))
-        }
-      }
-      finally {
-        webAPI.closeBackendConnection()
-      }
-//    )
+      Ok(Json.toJson(results.last))
+    }
+    finally {
+      db.backend.close()
+    }
   }
 
 
@@ -196,25 +306,25 @@ class Application extends Controller {
    */
   def loadTable = Action(parse.multipartFormData) { request =>
 //    webAPI.synchronized(
-      try {
-        webAPI.openBackendConnection()
+    try {
+      db.backend.open()
 
-        request.body.file("file").map { csvFile =>
-          val name = csvFile.filename
-          val dir = play.Play.application().path().getAbsolutePath
+      request.body.file("file").map { csvFile =>
+      val name = csvFile.filename
+      val dir = play.Play.application().path().getAbsolutePath
 
-          val newFile = new File(dir, name)
-          csvFile.ref.moveTo(newFile, true)
-          webAPI.handleLoadTable(name)
-          newFile.delete()
-        }
+      val newFile = new File(dir, name)
+      csvFile.ref.moveTo(newFile, true)
+      db.loadTable(name)
+      newFile.delete()
+    }
 
-        val result: WebResult = new WebStringResult("CSV file loaded.")
-        Ok(views.html.index(webAPI, "", result, ""))
-      }
-      finally {
-        webAPI.closeBackendConnection()
-      }
+      val result: WebResult = new WebStringResult("CSV file loaded.")
+      Ok(views.html.index(this, "", result, ""))
+    }
+    finally {
+      db.backend.close()
+    }
 //    )
   }
 
@@ -222,33 +332,35 @@ class Application extends Controller {
   /**
    * Return a list of all tables
    */
-  def allTables(db: String) = Action {
-    if(!db.equalsIgnoreCase(webAPI.getCurrentDB)) {
-      webAPI = new WebAPI(dbName = db)
-    }
-
-    try {
-      webAPI.openBackendConnection()
-      val result = webAPI.getAllDBs
-      Ok(Json.toJson(result))
-    }
-    finally {
-      webAPI.closeBackendConnection()
-    }
+  def getAllDatabases() = Action {
+    Ok(Json.toJson(allDatabases))
   }
 
-  def getExplainObject(query: String, row: String, ind: String, db: String) = Action {
-    if(!db.equalsIgnoreCase(webAPI.getCurrentDB)) {
-      webAPI = new WebAPI(dbName = db)
-    }
-
+  def getExplainObject(query: String, row: String, colIndexString: String) = Action {
     try {
-      webAPI.openBackendConnection()
-      val result = webAPI.getExplainObject(query, row, Integer.parseInt(ind))
-      Ok(result)
+      db.backend.open()
+
+      val colIndex = Integer.parseInt(colIndexString)
+
+      db.parse(query).last match {
+        case s:Select => {
+          val oper = db.sql.convert(s)
+          val explanation = 
+            if(colIndex < 0){
+              db.explainRow(oper, RowIdPrimitive(row))
+            } else {
+              val schema = Typechecker.schemaOf(oper)
+              db.explainCell(oper, RowIdPrimitive(row), schema(colIndex)._1)
+            }
+
+          Ok(explanation.toJSON)
+        }
+        case _ => 
+          BadRequest("Not A Query: "+query)
+      }
     }
     finally {
-      webAPI.closeBackendConnection()
+      db.backend.open()
     }
 
   }

@@ -8,18 +8,19 @@ lazy val mimircore = project
 
 lazy val mimirwebapp = 
   project.in(file(".")).
-    enablePlugins(play.PlayScala).
-    aggregate(mimircore).
-    dependsOn(mimircore)
+    enablePlugins(play.PlayScala)
 
 libraryDependencies ++= Seq(
   jdbc,
   cache,
   ws,
-  specs2 % Test
+  specs2 % Test,
+  "info.mimirdb" %% "mimir-core" % "0.1-SNAPSHOT",
+  "info.mimirdb" % "jsqlparser" % "1.0.0"
 )
 
 resolvers += "scalaz-bintray" at "http://dl.bintray.com/scalaz/releases"
+resolvers += "MimirDB" at "http://maven.mimirdb.info/"
 
 // Play provides two styles of routers, one expects its actions to be injected, the
 // other, legacy style, accesses its actions statically.

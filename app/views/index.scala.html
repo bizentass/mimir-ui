@@ -1,4 +1,4 @@
-@(webAPI: mimir.WebAPI, query: String, result: mimir.web.WebResult, lastQuery: String)
+@(app: controllers.Application, query: String, result: mimir.web.WebResult, lastQuery: String)
 @import mimir.web.{WebQueryResult, WebStringResult, WebErrorResult}
 @import mimir.algebra.Type
 
@@ -46,19 +46,9 @@
                         <li class="dropdown">
                         <a class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false"><span id="curr_db">Databases</span><span class="caret"></span></a>
                             <ul class="dropdown-menu" aria-labelledby="dropdownMenu1">
-                                @webAPI.getAllDBs.map { x =>
+                                @app.allDatabases.map { x =>
                                     <li><a class="db_link">@x</a></li>
                                 }
-
-                                <!-- Used in nav_bar for testing purposes 
-                                <li role="separator" class="divider"></li>
-                                <li class="dropdown-header" id="tables_header">Tables</li>
-                                @webAPI.db.backend.getAllTables().map { x =>
-                                    @if(!x.equals("MIMIR_LENSES") && !x.endsWith("_BACKEND")) {
-                                        <li><a class="table_link ">@x</a></li>
-                                    }
-                                }
-                                Used in nav_bar for testing purposes -->
 
                                 <li role="separator" class="divider"></li>
                                 <li><a id="create_database">Create Database</a></li>
@@ -97,14 +87,14 @@
                             <span class="caret"></span></button>
                             <ul class="dropdown-menu" id="select_table" aria-labelledby="dropdownMenu1">
                                 <li class="dropdown-header" >Raw Data Tables</li>
-                                @webAPI.db.backend.getAllTables().map { x =>
+                                @app.db.backend.getAllTables().map { x =>
                                     @if(!x.equals("MIMIR_LENSES") && !x.endsWith("_BACKEND")) {
                                         <li><a class="table_link ">@x</a></li>
                                     }
                                 }
                                 <li role="separator" class="divider"></li>
                                 <li class="dropdown-header">Applied Lenses</li>
-                                @webAPI.db.lenses.getAllLensNames().map { x =>
+                                @app.db.lenses.getAllLensNames().map { x =>
                                 <li><a class="lens_link">@x</a></li>
                                 }
                             </ul>
@@ -115,7 +105,7 @@
                     </div>
                 </form>
                 <input type="hidden" id="last_query_field" name="last_query" value="@lastQuery">
-                <input type="hidden" id="db_field" name="db" value="@webAPI.getCurrentDB">
+                <input type="hidden" id="db_field" name="db" value="@app.db.name">
             </div>
         </div>
 
@@ -135,18 +125,18 @@
                         <div class="dropdown">
                             <button class="btn btn-primary dropdown-toggle" style="width:100%;text-align:left;" type="button" data-toggle="dropdown">Add Data
                             <span class="caret"></span></button>
-                            <ul class="dropdown-menu">
+                            <ul class="dropdown-menu" id="ad_list">
                                 <li class="dropdown-header" >Raw Data Tables</li>
-                                @webAPI.db.backend.getAllTables().map { x =>
+                                @app.db.backend.getAllTables().map { x =>
                                     @if(!x.equals("MIMIR_LENSES") && !x.endsWith("_BACKEND")) {
                                         <li><button class="lens_btn add_data_btn">@x</button></li>
                                     }
                                 }
-                                <li role="separator" class="divider"></li>
+                                <!--<li role="separator" class="divider"></li>
                                 <li class="dropdown-header">Applied Lenses</li>
-                                @webAPI.db.lenses.getAllLensNames().map { x =>
-                                <li><a class="lens_link">@x</a></li>
-                                }
+                                @app.db.lenses.getAllLensNames().map { x =>
+                                <li><a class="lens_link add_data_btn">@x</a></li>
+                                } -->
                             </ul>
                         </div>
                         
@@ -155,7 +145,7 @@
                                 <h3 class="panel-title">Notifications</h3>
                             </div>
                             <div class="panel-body">
-                                <p><b>Active Database:</b><br>@webAPI.getCurrentDB</p><hr>
+                                <p><b>Active Database:</b><br>@app.db.name</p><hr>
                                 <li><p>@iter.count row(s) returned in @iter.executionTime ms, showing top 100</p></li>
                                 <li><p><span style="color:red">Red</span> represents data uncertainty</p></li>
                                 @if(iter.missingRows) {
@@ -238,7 +228,7 @@
             <br>
             <input type="text" class="form-control" id="sm_lens_param" list="schemas">
             <datalist id="schemas">
-                @webAPI.getAllSchemas.map{ case (name, schema) =>
+                @app.allSchemas.map{ case (name, schema) =>
                     <option>@(name + schema.map( (x) => x._1+" "+Type.toString(x._2)).mkString(" [", ", ", "] "))</option>
                 }
             </datalist>
