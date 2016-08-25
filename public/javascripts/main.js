@@ -327,7 +327,7 @@ $( document ).ready(function() {
                 fault = true;
                 errormessage += res.error+'<br/>';
             } else {
-                on_ready(res["result"])
+                on_ready(res)
             }
         })         
     }
@@ -464,12 +464,10 @@ $( document ).ready(function() {
         el.id = i+1;
     });
 
+
+    var seletced = "";
     $("#ad_list li").click(function() {
-        alert(this.id); // id of clicked li by directly accessing DOMElement property
-        alert($(this).attr('id')); // jQuery's .attr() method, same but more verbose
-        alert($(this).html()); // gets innerHTML of clicked li
-        var selected = alert($(this).text()); // gets text contents of clicked li
-        console.log(selected);
+        selected = $(this).text(); // gets text contents of clicked li
     });
 
     //get the table name you selected and the shcma for the lastest query text
@@ -493,8 +491,8 @@ $( document ).ready(function() {
                     }
                 }
 
-                var origquery = $("#last_query_field").val();                   //[       ]name until i get the real selected name
-                var createlens = "CREATE LENS "+ad_lens_name+" AS SELECT * FROM "+"RATINGS1"+" WITH SCHEMA_MATCHING("+schemaString+");" //needs to be schema of last query field* is currently nothign
+                var origquery = $("#last_query_field").val();                   //[       ]name selected from add data list
+                var createlens = "CREATE LENS "+ad_lens_name+" AS SELECT * FROM "+selected+" WITH SCHEMA_MATCHING("+schemaString+");" //needs to be schema of last query field* is currently nothign
 
                 var select = origquery+" UNION ALL SELECT * FROM "+ad_lens_name+";";
                 var query = createlens+"\n"+select;
