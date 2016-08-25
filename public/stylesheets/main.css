@@ -73,7 +73,7 @@ a:hover {
 }
 
 #query_div .dropdown-menu {
-    left:                       -103;
+    right:                      0;
 }
 
 #query_textarea {

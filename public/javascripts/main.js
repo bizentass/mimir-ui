@@ -461,7 +461,15 @@ $( document ).ready(function() {
     // assigns a value to each item in the list to later be used
     // to findout which one was selected
     $('#ad_list button').each(function(i,el){
-        el.value = i+1;
+        el.id = i+1;
+    });
+
+    $("#ad_list li").click(function() {
+        alert(this.id); // id of clicked li by directly accessing DOMElement property
+        alert($(this).attr('id')); // jQuery's .attr() method, same but more verbose
+        alert($(this).html()); // gets innerHTML of clicked li
+        var selected = alert($(this).text()); // gets text contents of clicked li
+        console.log(selected);
     });
 
     //get the table name you selected and the shcma for the lastest query text
