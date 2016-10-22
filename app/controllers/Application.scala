@@ -8,6 +8,9 @@ import mimir.web._
 import mimir.algebra.{QueryNamer, QueryVisualizer, Type, RowIdPrimitive, Typechecker}
 import mimir.sql.{CreateLens, Explain}
 import mimir.util.{JSONBuilder}
+
+import com.typesafe.scalalogging.slf4j.LazyLogging
+
 import play.api.mvc._
 import play.api.libs.json._
 import net.sf.jsqlparser.statement.Statement
@@ -34,7 +37,7 @@ import net.sf.jsqlparser.statement.update.Update
  * https://www.playframework.com/documentation/2.0/ScalaActions
  */
 
-class Application extends Controller {
+class Application extends Controller with LazyLogging {
 
   /*
    * The Writes interface allows us to convert
@@ -76,12 +79,16 @@ class Application extends Controller {
     def writes(tup: (String, String)) = Json.obj("reason" -> tup._1, "lensType" -> tup._2)
   }
 
-  private def prepareDatabase(dbName: String = "test.db", backend: String = "sqlite") =
+  private def prepareDatabase(dbName: String = "ui_demo.db", backend: String = "sqlite") =
   {
     new Database(dbName, new JDBCBackend(backend, dbName))
   }
 
   private def handleStatements(input: String): (List[Statement], List[WebResult]) = {
+
+    logger.debug(s"Received query $input")
+
+
     val statements = db.parse(input)
     val results = 
     statements.map({
@@ -99,7 +106,7 @@ class Application extends Controller {
         results.open()
         val wIter: WebIterator = db.generateWebIterator(results)
         try{
-          wIter.queryFlow = QueryVisualizer.convertToTree(raw)
+          wIter.queryFlow = QueryVisualizer.convertToTree(db, raw)
         } catch {
           case e: Throwable => {
             e.printStackTrace()
@@ -146,8 +153,14 @@ class Application extends Controller {
   }
 
   def allSchemas: Map[String, List[(String, Type.T)]] = {
-    db.backend.getAllTables().map{ (x) => (x, db.getTableSchema(x).get) }.toMap ++
-      db.lenses.getAllLensNames().map{ (x) => (x, db.getLens(x).schema()) }.toMap
+    (db.backend.getAllTables().map{ (x) => (x, db.getTableSchema(x).get) }.toMap ++
+      db.lenses.getAllLensNames().map{ (x) => (x, db.getLens(x).schema()) }.toMap)
+  }
+
+  def allVisibleSchemas: Map[String, List[(String, Type.T)]] = {
+    allSchemas.filter( (x) => {
+      true  
+    })
   }
 
 
@@ -255,8 +268,9 @@ class Application extends Controller {
       
       val querySql = db.parse(queryString).last.asInstanceOf[Select]
       val queryRA = db.sql.convert(querySql)
+
       val schema = 
-        JSONBuilder.list(queryRA.schema.map({
+        JSONBuilder.list(db.bestGuessSchema(queryRA).map({
             case (name, t) => JSONBuilder.dict(Map(
               "name" -> JSONBuilder.string(name),
               "type" -> JSONBuilder.string(Type.toString(t)) 
@@ -336,7 +350,28 @@ class Application extends Controller {
     Ok(Json.toJson(allDatabases))
   }
 
-  def getExplainObject(query: String, row: String, colIndexString: String) = Action {
+  def getRowExplain(query: String, row: String) = Action {
+    try {
+      db.backend.open()
+
+      db.parse(query).last match {
+        case s:Select => {
+          val oper = db.sql.convert(s)
+          val explanation = 
+            db.explainRow(oper, RowIdPrimitive(row))
+
+          Ok(explanation.toJSON)
+        }
+        case _ => 
+          BadRequest("Not A Query: "+query)
+      }
+    }
+    finally {
+      db.backend.open()
+    }
+  }
+
+  def getColExplain(query: String, row: String, colIndexString: String) = Action {
     try {
       db.backend.open()
 
@@ -345,13 +380,9 @@ class Application extends Controller {
       db.parse(query).last match {
         case s:Select => {
           val oper = db.sql.convert(s)
+          val schema = Typechecker.schemaOf(oper)
           val explanation = 
-            if(colIndex < 0){
-              db.explainRow(oper, RowIdPrimitive(row))
-            } else {
-              val schema = Typechecker.schemaOf(oper)
-              db.explainCell(oper, RowIdPrimitive(row), schema(colIndex)._1)
-            }
+            db.explainCell(oper, RowIdPrimitive(row), schema(colIndex)._1)
 
           Ok(explanation.toJSON)
         }

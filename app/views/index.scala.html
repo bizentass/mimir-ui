@@ -80,26 +80,18 @@
                 <form id="query_form" action="queryDB" method="POST">
                     <textarea id="query_textarea" name="query" placeholder="Enter query here..." spellcheck="false">@query</textarea>
                     <div class="row">
-                        <input type="submit" class="btn btn-primary" id="query_btn" value="Query">
-
                     <!-- Actual button in form -->
                         <div class="dropdown" id="table_btn"><button class="btn btn-primary dropdown-toggle" aria-haspopup="true" aria-expanded="false" style="text-align:left;" type="button" data-toggle="dropdown">Select Table
                             <span class="caret"></span></button>
                             <ul class="dropdown-menu" id="select_table" aria-labelledby="dropdownMenu1">
-                                <li class="dropdown-header" >Raw Data Tables</li>
-                                @app.db.backend.getAllTables().map { x =>
-                                    @if(!x.equals("MIMIR_LENSES") && !x.endsWith("_BACKEND")) {
-                                        <li><a class="table_link ">@x</a></li>
-                                    }
-                                }
-                                <li role="separator" class="divider"></li>
-                                <li class="dropdown-header">Applied Lenses</li>
-                                @app.db.lenses.getAllLensNames().map { x =>
-                                <li><a class="lens_link">@x</a></li>
+                                @app.allVisibleSchemas.keys.map { x =>
+                                    <li><a class="table_link ">@x</a></li>
                                 }
                             </ul>
                         </div>
                     <!-- Actual button in form -->
+
+                    <input type="submit" class="btn btn-primary" id="query_btn" value="Query">
 
 
                     </div>
@@ -126,8 +118,7 @@
                             <button class="btn btn-primary dropdown-toggle" style="width:100%;text-align:left;" type="button" data-toggle="dropdown">Add Data
                             <span class="caret"></span></button>
                             <ul class="dropdown-menu" id="ad_list">
-                                <li class="dropdown-header" >Raw Data Tables</li>
-                                @app.db.backend.getAllTables().map { x =>
+                                @app.allVisibleSchemas.keys.map { x =>
                                     @if(!x.equals("MIMIR_LENSES") && !x.endsWith("_BACKEND")) {
                                         <li><button class="lens_btn add_data_btn">@x</button></li>
                                     }
@@ -228,7 +219,7 @@
             <br>
             <input type="text" class="form-control" id="sm_lens_param" list="schemas">
             <datalist id="schemas">
-                @app.allSchemas.map{ case (name, schema) =>
+                @app.allVisibleSchemas.map{ case (name, schema) =>
                     <option>@(name + schema.map( (x) => x._1+" "+Type.toString(x._2)).mkString(" [", ", ", "] "))</option>
                 }
             </datalist>
@@ -241,7 +232,7 @@
 
 <div id="black-box"></div>
 <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+<script src="assets/javascripts/jquery.min.js"></script>
 <!-- Include all compiled plugins (below), or include individual files as needed -->
 <script src="assets/bootstrap/js/bootstrap.js"></script>
 <script src="assets/javascripts/colResizable.min.js"></script>

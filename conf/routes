@@ -18,7 +18,8 @@ GET     /queryjson                  controllers.Application.queryJson(query)
 POST    /loadTable                  controllers.Application.loadTable
 
 # Services
-GET     /explain                    controllers.Application.getExplainObject(query, row, ind)
+GET     /explainCol                 controllers.Application.getColExplain(query, row, ind)
+GET     /explainRow                 controllers.Application.getRowExplain(query, row)
 GET     /queryName                  controllers.Application.nameForQuery(query)
 GET     /querySchema                controllers.Application.schemaForQuery(query)
 

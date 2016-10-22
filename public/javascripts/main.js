@@ -157,7 +157,7 @@ $( document ).ready(function() {
                 var fault = false;
                 var errormessage = "";
 
-                var explain_query = 'explain?query='+query+';&row='+row+'&ind='+ col_index
+                var explain_query = 'explainCol?query='+query+';&row='+row+'&ind='+ col_index
                                         +'&db='+db;
 
                 if (content == null) {
@@ -266,12 +266,14 @@ $( document ).ready(function() {
                 var fault = false;
                 var errormessage = "";
 
-                var explain_query = 'explain?query='+query+';&row='+row
+                var explain_query = 'explainRow?query='+query+';&row='+row
                                         +'&db='+db;
 
                 if (content == null) {
                     $.when(
                         $.get(explain_query, function (res) {
+                            console.log(res)
+                            res = JSON.parse(res)
                             if(res.hasOwnProperty('error')) {
                                 fault = true;
                                 errormessage += res.error+'<br/>';
@@ -323,6 +325,7 @@ $( document ).ready(function() {
 
         $.get(name_query, function (res) {
             console.log(res);
+            res = JSON.parse(res)
             if(res.hasOwnProperty('error')) {
                 fault = true;
                 errormessage += res.error+'<br/>';
@@ -340,11 +343,12 @@ $( document ).ready(function() {
 
         $.get(schema_query, function (res) {
             console.log(res);
+            res = JSON.parse(res)
             if(res.hasOwnProperty('error')) {
                 fault = true;
                 errormessage += res.error+'<br/>';
             } else {
-                on_ready(JSON.parse(res));
+                on_ready(res);
             }
         })         
     }
@@ -466,38 +470,26 @@ $( document ).ready(function() {
 
     //get the table name you selected and the shcma for the lastest query text
      $(".add_data_btn").click( function() {
-        get_query_name(function(name) {             // gets the new lens name
-            var ad_lens_name = name+"MATCHED";
+        var table = $(this).html();
+        get_query_schema(function(schema) {         // gets the schema from latest query
+            var ad_lens_name = table+"ADDED";
+            var qSchema = schema;
+            var schemaString = "";
 
-            get_query_schema(function(schema) {         // gets the schema from latest query
-                var qSchema = schema;
-                var schemaString = "";
+            for (i = 0; i < qSchema.length; i++) { 
+                if(i > 0){ schemaString += ", "; }
+                schemaString += qSchema[i].name +" "+ qSchema[i].type;
+            }
 
-                for (i = 0; i < qSchema.length; i++) { 
-                    if(i == qSchema.length -1){
+            var origquery = $("#last_query_field").val();                   //[       ]name until i get the real selected name
+            var createlens = "CREATE LENS "+ad_lens_name+" AS SELECT * FROM "+table+" WITH SCHEMA_MATCHING("+schemaString+");" //needs to be schema of last query field* is currently nothign
 
-                        schemaString += qSchema[i].name +" "+ qSchema[i].type;
+            var select = origquery+" UNION ALL SELECT * FROM "+ad_lens_name+";";
+            var query = createlens+"\n"+select;
 
-                    }else {
-
-                        schemaString += qSchema[i].name +" "+ qSchema[i].type+ ", ";
-
-                    }
-                }
-
-                var origquery = $("#last_query_field").val();                   //[       ]name until i get the real selected name
-                var createlens = "CREATE LENS "+ad_lens_name+" AS SELECT * FROM "+"RATINGS1"+" WITH SCHEMA_MATCHING("+schemaString+");" //needs to be schema of last query field* is currently nothign
-
-                var select = origquery+" UNION ALL SELECT * FROM "+ad_lens_name+";";
-                var query = createlens+"\n"+select;
-
-                $("#query_textarea").val(query);
-                $("#query_btn").trigger("click");
-            })
-
+            $("#query_textarea").val(query);
+            $("#query_btn").trigger("click");
         })
-
-        
 
         //var ad = document.getElementById("ad_list");
         //var selected_table = ad.buttons[ad.selectedIndex].text;

@@ -90,7 +90,7 @@ form {
     margin-bottom:              0em;
 }
 
-#query_btn {
+#table_btn {
     transition:                 all 0.2s ease-in-out;
     width:                      100px;
     height:                     40px;
@@ -103,7 +103,7 @@ form {
     transition:                 all 0.2s ease-in-out; 
 }
 
-#table_btn {
+#query_btn {
     transition:                 all 0.2s ease-in-out;
     float:                      right;
     margin-top:                 20px;

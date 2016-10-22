@@ -15,10 +15,11 @@ libraryDependencies ++= Seq(
   cache,
   ws,
   specs2 % Test,
-  "info.mimirdb" %% "mimir-core" % "0.1-SNAPSHOT",
+  "info.mimirdb" %% "mimir-core" % "0.1",
   "info.mimirdb" % "jsqlparser" % "1.0.0"
 )
 
+resolvers += "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/.m2/repository"
 resolvers += "scalaz-bintray" at "http://dl.bintray.com/scalaz/releases"
 resolvers += "MimirDB" at "http://maven.mimirdb.info/"
 
