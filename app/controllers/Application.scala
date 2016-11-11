@@ -17,6 +17,8 @@ import net.sf.jsqlparser.statement.Statement
 import net.sf.jsqlparser.statement.insert.Insert
 import net.sf.jsqlparser.statement.select.Select
 import net.sf.jsqlparser.statement.update.Update
+import net.sf.jsqlparser.statement.delete.Delete
+import net.sf.jsqlparser.statement.drop.Drop
 
 /*
  * This is the entry-point to the Web Interface.
@@ -133,11 +135,7 @@ class Application extends Controller with LazyLogging {
         new WebStringResult(res)
       }
       /*****************************************/           
-      case s: Insert =>
-        db.backend.update(s.toString)
-        new WebStringResult("Database updated.")
-      /*****************************************/           
-      case s: Update =>
+      case s: Statement =>
         db.backend.update(s.toString)
         new WebStringResult("Database updated.")
     })
