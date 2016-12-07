@@ -83,7 +83,10 @@ class Application extends Controller with LazyLogging {
 
   private def prepareDatabase(dbName: String = "ui_demo.db", backend: String = "sqlite") =
   {
-    new Database(dbName, new JDBCBackend(backend, dbName))
+    backend match {
+      case "sqlite" => new Database(dbName, new JDBCBackend(backend, "databases/" + dbName))
+      case _        => new Database(dbName, new JDBCBackend(backend, dbName))
+    }
   }
 
   private def handleStatements(input: String): (List[Statement], List[WebResult]) = {
