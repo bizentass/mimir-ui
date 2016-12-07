@@ -1,6 +1,6 @@
 name := "mimirwebapp"
 
-version := "0.2-SNAPSHOT"
+version := "0.2"
 
 scalaVersion := "2.10.5"
 
@@ -15,7 +15,7 @@ libraryDependencies ++= Seq(
   cache,
   ws,
   specs2 % Test,
-  "info.mimirdb" %% "mimir-core" % "0.1",
+  "info.mimirdb" %% "mimir-core" % "0.2-SNAPSHOT",
   "info.mimirdb" % "jsqlparser" % "1.0.0"
 )
 

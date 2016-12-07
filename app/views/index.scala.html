@@ -97,7 +97,7 @@
                     </div>
                 </form>
                 <input type="hidden" id="last_query_field" name="last_query" value="@lastQuery">
-                <input type="hidden" id="db_field" name="db" value="@app.db.name">
+                <input type="hidden" id="db_field" name="db" value="@app.db_name">
             </div>
         </div>
 
@@ -119,15 +119,8 @@
                             <span class="caret"></span></button>
                             <ul class="dropdown-menu" id="ad_list">
                                 @app.allVisibleSchemas.keys.map { x =>
-                                    @if(!x.equals("MIMIR_LENSES") && !x.endsWith("_BACKEND")) {
-                                        <li><button class="lens_btn add_data_btn">@x</button></li>
-                                    }
+                                    <li><button class="lens_btn add_data_btn">@x</button></li>
                                 }
-                                <!--<li role="separator" class="divider"></li>
-                                <li class="dropdown-header">Applied Lenses</li>
-                                @app.db.lenses.getAllLensNames().map { x =>
-                                <li><a class="lens_link add_data_btn">@x</a></li>
-                                } -->
                             </ul>
                         </div>
                         
@@ -136,7 +129,7 @@
                                 <h3 class="panel-title">Notifications</h3>
                             </div>
                             <div class="panel-body">
-                                <p><b>Active Database:</b><br>@app.db.name</p><hr>
+                                <p><b>Active Database:</b><br>@app.db_name</p><hr>
                                 <li><p>@iter.count row(s) returned in @iter.executionTime ms, showing top 100</p></li>
                                 <li><p><span style="color:red">Red</span> represents data uncertainty</p></li>
                                 @if(iter.missingRows) {

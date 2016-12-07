@@ -81,9 +81,16 @@ class Application extends Controller with LazyLogging {
     def writes(tup: (String, String)) = Json.obj("reason" -> tup._1, "lensType" -> tup._2)
   }
 
-  private def prepareDatabase(dbName: String = "ui_demo.db", backend: String = "sqlite") =
+  private def prepareDatabase(dbName: String = "ui_demo.db", backend: String = "sqlite"): Database =
   {
-    new Database(dbName, new JDBCBackend(backend, dbName))
+    var ret = new Database(new JDBCBackend(backend, dbName))
+    try { 
+      ret.backend.open() 
+      ret.initializeDBForMimir()
+    } finally {
+      ret.backend.close()
+    }
+    return ret
   }
 
   private def handleStatements(input: String): (List[Statement], List[WebResult]) = {
@@ -121,7 +128,7 @@ class Application extends Controller with LazyLogging {
       }
       /*****************************************/           
       case s: CreateLens =>
-        db.createLens(s)
+        db.update(s)
         new WebStringResult("Lens created successfully.")
       /*****************************************/           
       case s: Explain => {
@@ -136,7 +143,7 @@ class Application extends Controller with LazyLogging {
       }
       /*****************************************/           
       case s: Statement =>
-        db.backend.update(s.toString)
+        db.update(s)
         new WebStringResult("Database updated.")
     })
     (statements, results)
@@ -150,19 +157,19 @@ class Application extends Controller with LazyLogging {
       map(x => x.getName)
   }
 
-  def allSchemas: Map[String, List[(String, Type.T)]] = {
-    (db.backend.getAllTables().map{ (x) => (x, db.getTableSchema(x).get) }.toMap ++
-      db.lenses.getAllLensNames().map{ (x) => (x, db.getLens(x).schema()) }.toMap)
+  def allSchemas: Map[String, List[(String, Type)]] = {
+    db.getAllTables.map{ (x) => (x, db.getTableSchema(x).get) }.toMap
   }
 
-  def allVisibleSchemas: Map[String, List[(String, Type.T)]] = {
-    allSchemas.filter( (x) => {
-      true  
+  def allVisibleSchemas: Map[String, List[(String, Type)]] = {
+    allSchemas.filter( (x) => { true 
+      // (!x._1.startsWith("MIMIR_"))
     })
   }
 
 
   var db = prepareDatabase()
+  var db_name = ""
 
   /*
    * Actions
@@ -187,7 +194,7 @@ class Application extends Controller with LazyLogging {
     val form = request.body.asFormUrlEncoded
     val newDBName = form.get("db").head
 
-    if(!db.name.equalsIgnoreCase(newDBName)) {
+    if(!db_name.equalsIgnoreCase(newDBName)) {
       prepareDatabase(newDBName)
     }
 
