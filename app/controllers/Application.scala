@@ -57,7 +57,7 @@ class Application extends Controller with LazyLogging {
       "data" -> webQueryResult.webIterator.data.map(x => x._1),
       "rowValidity" -> webQueryResult.webIterator.data.map(x => x._2),
       "missingRows" -> webQueryResult.webIterator.missingRows,
-      "qyeryFlow" -> webQueryResult.webIterator.queryFlow.toJson().toString()
+      "queryFlow" -> webQueryResult.webIterator.queryFlow.toJson().toString()
     )
   }
 
@@ -85,8 +85,8 @@ class Application extends Controller with LazyLogging {
   {
     var ret =
       backend match {
-        case "sqlite" => new Database(dbName, new JDBCBackend(backend, "databases/" + dbName))
-        case _        => new Database(dbName, new JDBCBackend(backend, dbName))
+        case "sqlite" => new Database(new JDBCBackend(backend, "databases/" + dbName))
+        case _        => new Database(new JDBCBackend(backend, dbName))
       }
 
     try { 
@@ -162,13 +162,16 @@ class Application extends Controller with LazyLogging {
       map(x => x.getName)
   }
 
-  def allSchemas: Map[String, List[(String, Type)]] = {
-    db.getAllTables.map{ (x) => (x, db.getTableSchema(x).get) }.toMap
+  def allSchemas: Seq[(String, Seq[(String, Type)])] = {
+    db.getAllTables.toList.
+      map{ (x) => (x, db.bestGuessSchema(db.getTableOperator(x))) }.
+      sortBy(_._1)
   }
 
-  def allVisibleSchemas: Map[String, List[(String, Type)]] = {
-    allSchemas.filter( (x) => { true 
-      // (!x._1.startsWith("MIMIR_"))
+  def allVisibleSchemas: Seq[(String, Seq[(String, Type)])] = {
+    allSchemas.filter( (x) => { 
+      (!x._1.startsWith("MIMIR_")) &&
+      (!x._1.endsWith("_RAW"))
     })
   }
 
@@ -259,7 +262,11 @@ class Application extends Controller with LazyLogging {
       val queryRA = db.sql.convert(querySql)
       val name = QueryNamer.nameQuery(db.optimize(queryRA))
 
-      Ok(name);
+      Ok(
+        Json.obj(
+          "result" -> name
+        )
+      );
 
     } catch {
       case e: Throwable => {

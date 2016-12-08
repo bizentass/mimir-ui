@@ -84,8 +84,8 @@
                         <div class="dropdown" id="table_btn"><button class="btn btn-primary dropdown-toggle" aria-haspopup="true" aria-expanded="false" style="text-align:left;" type="button" data-toggle="dropdown">Select Table
                             <span class="caret"></span></button>
                             <ul class="dropdown-menu" id="select_table" aria-labelledby="dropdownMenu1">
-                                @app.allVisibleSchemas.keys.map { x =>
-                                    <li><a class="table_link ">@x</a></li>
+                                @app.allVisibleSchemas.map { x =>
+                                    <li><a class="table_link ">@x._1</a></li>
                                 }
                             </ul>
                         </div>
@@ -118,8 +118,8 @@
                             <button class="btn btn-primary dropdown-toggle" style="width:100%;text-align:left;" type="button" data-toggle="dropdown">Add Data
                             <span class="caret"></span></button>
                             <ul class="dropdown-menu" id="ad_list">
-                                @app.allVisibleSchemas.keys.map { x =>
-                                    <li><button class="lens_btn add_data_btn">@x</button></li>
+                                @app.allVisibleSchemas.map { x =>
+                                    <li><button class="lens_btn add_data_btn">@x._1</button></li>
                                 }
                             </ul>
                         </div>

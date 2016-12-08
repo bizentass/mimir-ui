@@ -149,7 +149,7 @@ $( document ).ready(function() {
                 var db = $("#db_field").val();
 
                 var bounds = null;
-                var variance = null;
+                var stddev = null;
                 var mean = null;
                 var examples = null;
                 var causes = [];
@@ -177,8 +177,8 @@ $( document ).ready(function() {
                                 if(res.hasOwnProperty('mean')){
                                     mean = res['mean']
                                 }
-                                if(res.hasOwnProperty('variance')){
-                                    variance = res['variance']
+                                if(res.hasOwnProperty('stddev')){
+                                    stddev = res['stddev']
                                 }
                                 if(res.hasOwnProperty('examples')){
                                     console.log("Examples");
@@ -195,7 +195,7 @@ $( document ).ready(function() {
                             var tooltip_template = '<table class="table tooltip_table">'+
                                                   '<tbody>'+
                                                       '<tr>'+
-                                                          '<th scope="row">Examples</th>'+
+                                                          '<th scope="row">Possibilities</th>'+
                                                           '<td>'+examples+'</td>'+
                                                       '</tr>'
 
@@ -211,10 +211,10 @@ $( document ).ready(function() {
                                                           '<td class="number">'+mean+'</td>'+
                                                       '</tr>'
                             }
-                            if(variance){
+                            if(stddev){
                               tooltip_template +=     '<tr>'+
-                                                          '<th scope="row">Variance</th>'+
-                                                          '<td class="number">'+variance+'</td>'+
+                                                          '<th scope="row">Std. Dev.</th>'+
+                                                          '<td class="number">'+stddev+'</td>'+
                                                       '</tr>'
                             }
                                                       
@@ -325,7 +325,9 @@ $( document ).ready(function() {
 
         $.get(name_query, function (res) {
             console.log(res);
-            res = JSON.parse(res)
+            if(typeof res == "string"){
+                res = JSON.parse(res)
+            }
             if(res.hasOwnProperty('error')) {
                 fault = true;
                 errormessage += res.error+'<br/>';
@@ -343,7 +345,9 @@ $( document ).ready(function() {
 
         $.get(schema_query, function (res) {
             console.log(res);
-            res = JSON.parse(res)
+            if(typeof res == "string"){
+                res = JSON.parse(res)
+            }
             if(res.hasOwnProperty('error')) {
                 fault = true;
                 errormessage += res.error+'<br/>';
@@ -451,12 +455,16 @@ $( document ).ready(function() {
 
         var param = $("#sm_lens_param").val();
         param = param.split("[")[1].replace("]", "");
+        console.log(param)
+        param = param.split(", ").map(function(f){return "'"+f+"'"}).join(", ")
+        console.log(param)
 
         var subquery = $("#last_query_field").val();
         var createlens = "CREATE LENS "+name+" AS "+subquery+" WITH SCHEMA_MATCHING("+param+");"
 
         var select = "SELECT * FROM "+name+";"
         var query = createlens+"\n"+select;
+        console.log(createlens)
 
         $("#query_textarea").val(query);
         $("#query_btn").trigger("click");
@@ -478,7 +486,7 @@ $( document ).ready(function() {
 
             for (i = 0; i < qSchema.length; i++) { 
                 if(i > 0){ schemaString += ", "; }
-                schemaString += qSchema[i].name +" "+ qSchema[i].type;
+                schemaString += "'"+qSchema[i].name +" "+ qSchema[i].type+"'";
             }
 
             var origquery = $("#last_query_field").val();                   //[       ]name until i get the real selected name
@@ -487,6 +495,7 @@ $( document ).ready(function() {
             var select = origquery+" UNION ALL SELECT * FROM "+ad_lens_name+";";
             var query = createlens+"\n"+select;
 
+            console.log(query)
             $("#query_textarea").val(query);
             $("#query_btn").trigger("click");
         })
