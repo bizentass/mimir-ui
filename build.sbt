@@ -16,7 +16,9 @@ libraryDependencies ++= Seq(
   ws,
   specs2 % Test,
   "info.mimirdb" %% "mimir-core" % "0.2-SNAPSHOT",
-  "info.mimirdb" % "jsqlparser" % "1.0.0"
+  "info.mimirdb" % "jsqlparser" % "1.0.0",
+  "com.mashape.unirest" % "unirest-java" % "1.3.0",
+  "com.google.code.gson" % "gson" % "2.8.0"
 )
 
 resolvers += "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/.m2/repository"

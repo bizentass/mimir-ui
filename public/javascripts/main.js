@@ -445,7 +445,6 @@ $( document ).ready(function() {
         })
     });
 
-
     $("#sm_lens_create_btn").click( function() {
         var name = $("#sm_lens_name").val();
         if(name === "") {
@@ -469,6 +468,8 @@ $( document ).ready(function() {
         $("#query_textarea").val(query);
         $("#query_btn").trigger("click");
     });
+
+
 
     // assigns a value to each item in the list to later be used
     // to findout which one was selected
@@ -509,8 +510,137 @@ $( document ).ready(function() {
     });
 
     Mimir.visualization.drawGraph();
+
+    // NLP and Discovery module changes
+
+    // This populates the SQL text area after choosing the NLP, can be used to trigger query click as well
+
+    $("#nlp_confirm_btn").click( function() {
+        var nlp_query = $('#sqlData').text();
+        $("#query_textarea").val(nlp_query);
+        // $("#query_btn").trigger("click");
+    });
+
+    // Letting the user choose between NLP and Discovery
+    $('input:radio[name="nlp_choice"]').change(function() {
+
+        if ($(this).val() == 'configured') {
+            $("#kueri_div").show()
+            $("#nlp_confirm_btn").show()
+            $("#nlp_back_btn").show()
+            $("#ontology_div").hide()
+        } else if ($(this).val() == 'not_configured') {
+            $("#kueri_div").hide()
+            $("#nlp_confirm_btn").hide()
+            $("#nlp_back_btn").show()
+            $("#ontology_div").show()
+        }
+
+        $("#nlp_choice_div").hide()
+    });
+
+    $('#nlp_back_btn').click(function() {
+        $("#nlp_choice_div").show()
+        $("#kueri_div").hide()
+        $("#nlp_confirm_btn").hide()
+        $("#ontology_div").hide()
+    });
+
+    $('#clearContents').click(function() {
+        $('#discovery_field').val('');
+    });
+
+    // Typo detection in discovery search box
+    var dictionary = new Typo("en_US", false, false, { dictionaryPath: "assets/javascripts/typo/dictionaries" });
+
+    $('#searchContents').click(function() {
+        var searchElement = $('#discovery_field').val()
+        var is_spelled_correctly = dictionary.check(searchElement)
+        if(is_spelled_correctly) {
+            $('#discovery_field').removeClass('errorClass')
+
+            $.get('/discover', {'arg': searchElement})
+                .success(function(result) {
+                    if(result === null) {
+                        $('#ontologyTree').text(" The table you are looking for is probably not there in our database.");
+                        $('#ontologyViz').hide()
+                    }
+                    else {
+                        $('#ontologyTree').text(" The table you are looking for is probably " + result);
+
+                        $.get('/discoverViz')
+                            .success(function(result) {
+                                var jsonResult = JSON.parse("["+result+"]")
+                                $('#ontologyViz').empty()
+                                $('#ontologyViz').html( Mimir.discovery.drawTree(jsonResult[0]))
+                                $('#ontologyViz').show()
+                            })
+                            .error(function(jqXHR, textStatus, errorThrown) {
+                                $('#ontologyViz').html("Error thrown is " + errorThrown);
+                                $('#ontologyViz').show()
+                            })
+
+                    }
+                })
+                .error(function(jqXHR, textStatus, errorThrown) {
+                    $('#ontologyTree').text("Error thrown is " + errorThrown);
+                });
+        }
+        else {
+            $('#discovery_field').addClass('errorClass')
+            $('#ontologyTree').text("");
+            $('#ontologyViz').hide()
+        }
+    });
+
+    // Initialize kueri search
+    var kueriSearch = new Kueri.SearchInitializer({
+        searchBoxSelector: '#searchBoxNormal',
+        showDatabases: true,
+        requestUrl: 'http://localhost/admin/api',
+        receiveResults: false
+    });
+
+    $("#searchBoxNormal").on("searchbox:results", function (ev, data) {
+        $('#sqlData').text(data.query[0].q);
+    });
+
+    var context = this;
+    var getSql = function (queryText) {
+        kueriSearch.getSuggestions(context, { query1: queryText, query2: '' },
+            function(data) {
+                var cannotTranslate = true;
+                $.each(data.suggests, function(i, v) {
+                    if ((v.type == kueriSearch.SUGGEST_UNSUPPORTED) || (v.type == kueriSearch.SUGGEST_AMBIGUITY) || (v.type == kueriSearch.SERVICE_UNAVAILABLE)) {
+                        $('#sqlData').text(v.text);
+                        cannotTranslate = false;
+                        return false;
+                    } else if ((v.type == kueriSearch.SUGGEST_QUERY) || (v.type == kueriSearch.SUGGEST_TO_RUN)) {
+                        kueriSearch.submitSuggestion(context, v.query, queryText);
+                        cannotTranslate = false;
+                        return false;
+                    }
+                });
+
+                if (cannotTranslate) {
+                    $('#sqlData').text('Cannot translate this input to SQL');
+                }
+            },
+            true);
+    };
+
+    // searchBoxNormal's styling changes on page load, reverting it to be of parity with existing styles
+    $('#searchBoxNormal .db-container .dropdown-toggle').removeClass('btn-inverse').addClass('btn-default');
+
 });
 
+$(document).ajaxStart(function() {
+    $("#loader").show();
+});
+
+$(document).ajaxStop(function() {
+    $("#loader").hide();
+});
 
 /*
 Utility functions

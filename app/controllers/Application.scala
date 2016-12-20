@@ -367,6 +367,19 @@ class Application extends Controller with LazyLogging {
     Ok(Json.toJson(allDatabases))
   }
 
+  /* This creates the TableOntology object and initializes the tree*/
+  val obj: TableOntology = new TableOntology()
+
+  def discover(element: String) = Action {
+    val result = obj.returnResult(element)
+    Ok(Json.toJson(result))
+  }
+
+  def discoverVisualization() = Action {
+    val result = obj.treeToJsonString()
+    Ok(Json.toJson(result))
+  }
+
   def getRowExplain(query: String, row: String) = Action {
     try {
       db.backend.open()
